@@ -580,6 +580,7 @@ public:
   }
 
   // TODO: extensive testing for the path finding
+  // TODO: add a variable "length" so that paths longer than the initial one don't need to be explored and there doesn't need to be a huge list of paths in the "paths" variable
   // Puts the shortest path between the selected start and end point into v_Path
   void FindShortestPath()
   {
