@@ -7,9 +7,9 @@
       "args": [
         "-fdiagnostics-color=always",
         "-g",
-        "C:\\Users\\agmar\\Programming\\github repositories\\My_showcase_of_skills\\C++ Projects\\PGE graph visualizer\\PGE_graph_visualiser.cpp",
+        "C:\\Users\\Andras\\Programming\\github repositories\\PGE_graph_visualizer\\PGE_graph_visualiser.cpp",
         "-o",
-        "C:\\Users\\agmar\\Programming\\github repositories\\My_showcase_of_skills\\C++ Projects\\PGE graph visualizer\\PGE_graph_visualiser.exe",
+        "C:\\Users\\Andras\\Programming\\github repositories\\PGE_graph_visualizer\\PGE_graph_visualiser.exe",
 
         // Optimization
         "-O0",
@@ -29,7 +29,7 @@
         "-std=c++20",
       ],
       "options": {
-        "cwd": "C:\\Users\\agmar\\Programming\\github repositories\\My_showcase_of_skills\\C++ Projects\\PGE graph visualizer"
+        "cwd": "C:\\Users\\Andras\\Programming\\github repositories\\PGE_graph_visualizer"
       },
       "problemMatcher": [
         "$gcc"

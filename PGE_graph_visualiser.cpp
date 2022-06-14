@@ -1,4 +1,5 @@
 // TODO: better comments/documentation of functions and everything
+// TODO: use vi2d whenever possible
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
 #include <set>
@@ -105,6 +106,8 @@ private:
   // Id of the selected ending vertex
   int i_End = -1;
 
+  olc::vf2d mouse;
+
   bool b_ChangeHasOccurred = false;
 
 public:
@@ -180,6 +183,10 @@ public:
 
   bool OnUserUpdate(float fElapsedTime) override
   {
+    // Getting and storing mouse input for one frame
+    mouse.x = GetMouseX();
+    mouse.y = GetMouseY();
+
     UserInput();
     VertexCollision();
     DrawingRoutine();
@@ -349,8 +356,9 @@ public:
     }
   }
 
-  // TODO: Better comments for this function
-  // Detects ovelap between two vertices and applies froce pushing them away from each other
+  /**
+   * @brief Prevents two vertices from having the same position by pushing them away from each other using realistic physics
+   */
   void VertexCollision()
   {
     for (auto &vertex : v_Vertices)
@@ -386,10 +394,10 @@ public:
     // Selects the text to be drawn based upon which mode is active
     switch (e_Mode)
     {
-    case MOVE: mode = "  move >"; break;
-    case VERTEX: mode = "< vertex >"; break;
-    case EDGE: mode = "< edge >"; break;
-    case DIJKSTRA: mode = "< find shortest path from Start to End"; break;
+      case MOVE: mode = "  move >"; break;
+      case VERTEX: mode = "< vertex >"; break;
+      case EDGE: mode = "< edge >"; break;
+      case DIJKSTRA: mode = "< find shortest path from Start to End"; break;
     }
 
     // Drawing the edges with length and direction
@@ -503,8 +511,8 @@ public:
 
     // TODO: Draw radius size
     // Drawing mode and edge length information in the top left corner
-    DrawString(5.0f, 5.0f,  "Edge length: "+std::to_string(i_EdgeLength), olc::MAGENTA, 2);
-    DrawString(5.0f, 25.0f, "Mode: "+mode, olc::MAGENTA, 2);
+    DrawString(5.0f, 5.0f,  "Edge length: " + std::to_string(i_EdgeLength), olc::MAGENTA, 2);
+    DrawString(5.0f, 25.0f, "Mode: " + mode, olc::MAGENTA, 2);
   }
 
   // Returns true, if the edge is part of the shortest path
@@ -544,12 +552,9 @@ public:
   // The user left-clicks on a vertex, setting it as the starting point of dijkstra's shortest path
   void SetStart()
   {
-    float mouseX = GetMouseX();
-    float mouseY = GetMouseY();
-
     for (auto const &vertex : v_Vertices)
     {
-      if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouseX, mouseY))
+      if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
       {
         i_Start = vertex.id;
         b_ChangeHasOccurred = true;
@@ -563,12 +568,9 @@ public:
   // The user right-clicks on a vertex, setting it as the ending point of dijkstra's shortest path
   void SetEnd()
   {
-    float mouseX = GetMouseX();
-    float mouseY = GetMouseY();
-
     for (auto const &vertex : v_Vertices)
     {
-      if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouseX, mouseY))
+      if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
       {
         i_End = vertex.id;
         b_ChangeHasOccurred = true;
@@ -580,6 +582,7 @@ public:
   }
 
   // TODO: extensive testing for the path finding
+  // TODO: if a shorter path has been found, overwrite the old shortest path
   // TODO: add a variable "length" so that paths longer than the initial one don't need to be explored and there doesn't need to be a huge list of paths in the "paths" variable
   // Puts the shortest path between the selected start and end point into v_Path
   void FindShortestPath()
@@ -599,6 +602,7 @@ public:
 
     // Finding the shortest among all the paths
     length = INT_MAX;
+
     for(auto const &path : paths)
     {
       if (path.first < length)
@@ -684,12 +688,9 @@ public:
   {
     p_SelectedVertex = nullptr;
 
-    float mouseX = GetMouseX();
-    float mouseY = GetMouseY();
-
     for (auto &vertex : v_Vertices)
     {
-      if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouseX, mouseY))
+      if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
       {
         p_SelectedVertex = &vertex;
         break;
@@ -715,13 +716,10 @@ public:
     p_SelectedVertex = nullptr;
     bool b_GoodMousePosition = false;
 
-    float mouseX = GetMouseX();
-    float mouseY = GetMouseY();
-
     // If v_Vertices was empty
     if (v_Vertices.size() == 0)
     {
-      v_Vertices.push_back(s_Vertex(mouseX, mouseY, 0));
+      v_Vertices.push_back(s_Vertex(mouse.x, mouse.y, 0));
       s_Indices.insert(0);
       return;
     }
@@ -729,11 +727,10 @@ public:
     // Checks if the mouse is inside a vertex
     for (auto &vertex : v_Vertices)
     {
-      if (!IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouseX, mouseY))
+      if (!IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
       {
         b_GoodMousePosition = true;
       }
-
       else
       {
         b_GoodMousePosition = false;
@@ -752,7 +749,7 @@ public:
         id++;
       }
 
-      v_Vertices.push_back(s_Vertex(mouseX, mouseY, id));
+      v_Vertices.push_back(s_Vertex(mouse.x, mouse.y, id));
       s_Indices.insert(id);
     }
 
@@ -767,13 +764,10 @@ public:
     p_SelectedVertex = nullptr;
     int _id = -1;
 
-    float mouseX = GetMouseX();
-    float mouseY = GetMouseY();
-
     // Deletes the selected vertex
     for (int i = 0; i < v_Vertices.size(); i++)
     {
-      if (IsPointInCircle(v_Vertices[i].positionX, v_Vertices[i].positionY, i_Radius, mouseX, mouseY))
+      if (IsPointInCircle(v_Vertices[i].positionX, v_Vertices[i].positionY, i_Radius, mouse.x, mouse.y))
       {
         _id = v_Vertices[i].id;
         //s_Indices.erase(v_Vertices[i].id); // This doesn't work for some reason
@@ -799,16 +793,13 @@ public:
   // Creates a new edge
   void CreateNewEdge()
   {
-    float mouseX = GetMouseX();
-    float mouseY = GetMouseY();
-
     // If no vertex has been selected yet
     if (i_SelectedVertex == -1)
     {
 
       for (auto &vertex : v_Vertices)
       {
-        if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouseX, mouseY))
+        if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
         {
           i_SelectedVertex = vertex.id;
         }
@@ -820,7 +811,7 @@ public:
       {
         // Don't create an edge from the vertex to itself
         if (vertex.id != i_SelectedVertex)
-          if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouseX, mouseY))
+          if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
           {
             for (auto const &edge : v_Edges)
             {
@@ -851,12 +842,9 @@ public:
   // Deletes an edge
   void DeleteEdge()
   {
-    float mouseX = GetMouseX();
-    float mouseY = GetMouseY();
-
     for (auto const &vertex : v_Vertices)
     {
-      if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouseX, mouseY))
+      if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
       {
         for (int i = 0; i < v_Edges.size(); i++)
         {
