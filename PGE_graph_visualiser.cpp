@@ -582,8 +582,6 @@ public:
   }
 
   // TODO: extensive testing for the path finding
-  // TODO: if a shorter path has been found, overwrite the old shortest path
-  // TODO: add a variable "length" so that paths longer than the initial one don't need to be explored and there doesn't need to be a huge list of paths in the "paths" variable
   // Puts the shortest path between the selected start and end point into v_Path
   void FindShortestPath()
   {
@@ -596,49 +594,55 @@ public:
     // Construction data for finding the shortest path from i_Start to i_End
     std::vector<int> path;
     int length = 0;
-    std::unordered_map<int, std::vector<int>> paths;
+    // The last element is the length of the path
+    std::vector<int> shortestPath = {INT_MAX};
 
-    RecursiveSearchForShortestPath(i_Start, path, length, paths);
+    RecursiveSearchForShortestPath(i_Start, path, length, shortestPath);
 
-    // Finding the shortest among all the paths
-    length = INT_MAX;
+    shortestPath.pop_back();
 
-    for(auto const &path : paths)
-    {
-      if (path.first < length)
-      {
-        length = path.first;
-      }
-    }
-
-    v_Path = paths[length];
+    v_Path = shortestPath;
   }
 
   // A recursive function to find all reachable children using DFS (depth first search)
-  void RecursiveSearchForShortestPath(int vertex, std::vector<int> path, int length, std::unordered_map<int, std::vector<int>> &paths)
+  void RecursiveSearchForShortestPath(const int &vertex, std::vector<int> path, int length, std::vector<int> &shortestPath)
   {
-    // Search v_Edges for certain edges that are important
+    // Search v_Edges for a valid path
     for (auto &edge : v_Edges)
     {
-      // A valid path from i_Start to i_End has been found
-      if (edge.source == vertex && edge.target == i_End)
+      // The path is already too long, no shorter path will ever be found by following this one
+      if (length > shortestPath.back())
       {
-        // Compute the final lenght of the edge
-        length += edge.length;
-
-        // Pushing the last vertices onto the path
-        path.push_back(edge.source);
-        path.push_back(edge.target);
-
-        // Adding the path with length to the set of valid paths
-        paths[length] = path;
-
-        // Break recursion
-        return;
+        continue;
       }
+
       // An edge has been found
-      else if (edge.source == vertex)
+      if (edge.source == vertex)
       {
+        // A valid path from i_Start to i_End has been found
+        if (edge.target == i_End)
+        {
+          // Compute the final lenght of the edge
+          length += edge.length;
+
+          // Pushing the last vertices onto the path
+          path.push_back(edge.source);
+          path.push_back(edge.target);
+
+          // A shorter path has been found
+          if (length < shortestPath.back())
+          {
+            shortestPath.clear();
+            shortestPath = path;
+
+            // The last element is the length of the path
+            shortestPath.push_back(length);
+          }
+
+          // Since we have reached i_End, no further paths need to be explored
+          return;
+        }
+
         // Push the vertex onto the path
         path.push_back(edge.source);
 
@@ -646,7 +650,7 @@ public:
         length += edge.length;
 
         // Continue searching for children recursively
-        RecursiveSearchForShortestPath(edge.target, path, length, paths);
+        RecursiveSearchForShortestPath(edge.target, path, length, shortestPath);
       }
     }
   }
