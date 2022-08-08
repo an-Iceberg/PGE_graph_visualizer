@@ -1,5 +1,7 @@
 // TODO: better comments/documentation of functions and everything
 // TODO: use vi2d whenever possible
+// TODO: rework UI/UX
+// TOFIX: p_SelectedVertex shenanigans we have created in lieu of us removing the unnecessary i_SelectedVertex
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
 #include <set>
@@ -34,12 +36,8 @@ struct s_Vertex
 
 struct s_Edge
 {
-  // Id of the source vertex
-  int source;
-
-  // Id of the target vertex
-  int target;
-
+  int source; // Id of the source vertex
+  int target; // Id of the target vertex
   int length;
 
   // Constructor
@@ -54,15 +52,10 @@ struct s_Edge
 struct s_Point
 {
   int id;
-
-  // The id of the parent
-  int parent;
-
+  int parent; // The id of the parent
   int distanceToParent;
   bool visited;
-
-  // A list of all the children this point has
-  std::vector<s_Point*> children;
+  std::vector<s_Point*> children; // A list of all the children this point has
 
   s_Point(int _id, int _parent, int distance_to_parent)
   {
@@ -82,37 +75,28 @@ public:
   }
 
 private:
-  // Contains the data for the vertices
-  std::vector<s_Vertex> v_Vertices;
-
-  // Contains the data for the edges
-  std::vector<s_Edge> v_Edges;
-
+  std::vector<s_Vertex> v_Vertices; // Contains the data for the vertices
+  std::vector<s_Edge> v_Edges; // Contains the data for the edges
   std::set<int> s_Indices;
-
-  // Contains the ids of the vertices that form the shortest path from i_Start to i_End
-  std::vector<int> v_Path;
-
+  std::vector<int> v_Path; // Contains the ids of the vertices that form the shortest path from i_Start to i_End
   s_Vertex *p_SelectedVertex = nullptr;
-
   int i_Radius = 15;
-  int i_SelectedVertex = -1;
+  // int p_SelectedVertex->id = -1;
   int i_EdgeLength = 1;
   Mode e_Mode = MOVE;
-
-  // Id of the selected starting vertex
-  int i_Start = -1;
-
-  // Id of the selected ending vertex
-  int i_End = -1;
-
+  int i_Start = -1; // Id of the selected starting vertex
+  int i_End = -1; // Id of the selected ending vertex
   olc::vf2d mouse;
-
+  int screenHeight;
+  int screenWidth;
   bool b_ChangeHasOccurred = false;
 
 public:
   bool OnUserCreate() override
   {
+    screenHeight = ScreenHeight();
+    screenWidth = ScreenWidth();
+
     // Debug data, remove when deploying to production
     v_Vertices = {
       s_Vertex(258, 467, 0),
@@ -314,31 +298,31 @@ public:
     }
 
     // Pressing A key increases edge length
-    if (i_EdgeLength > 1 && GetKey(olc::A).bPressed)
+    if (i_EdgeLength > 1 and GetKey(olc::A).bPressed)
     {
       i_EdgeLength--;
     }
 
     // Pressing D key reduces edge length
-    if (i_EdgeLength < 20 && GetKey(olc::D).bPressed)
+    if (i_EdgeLength < 20 and GetKey(olc::D).bPressed)
     {
       i_EdgeLength++;
     }
 
     // Pressing UP key increases vertex radius
-    if (i_Radius < 20 && GetKey(olc::UP).bPressed)
+    if (i_Radius < 20 and GetKey(olc::UP).bPressed)
     {
       i_Radius++;
     }
 
     // Pressing DOWN key reduces vertex radius
-    if (i_Radius > 12 && GetKey(olc::DOWN).bPressed)
+    if (i_Radius > 12 and GetKey(olc::DOWN).bPressed)
     {
       i_Radius--;
     }
 
     // User can clear all graph data by pressing backspace
-    if (!v_Vertices.empty() && GetKey(olc::BACK).bPressed)
+    if (!v_Vertices.empty() and GetKey(olc::BACK).bPressed)
     {
       v_Vertices.clear();
       s_Indices.clear();
@@ -350,7 +334,7 @@ public:
     }
 
     // If any substantial change has occured to the graph, the shortest path data is cleared
-    if (!v_Path.empty() && b_ChangeHasOccurred)
+    if (!v_Path.empty() and b_ChangeHasOccurred)
     {
       v_Path.clear();
     }
@@ -418,7 +402,7 @@ public:
       float directionY = sourceY - targetY;
 
       // Distance between source and target (by using pythagoras' theorem)
-      float length = sqrtf((directionX) * (directionX) + (directionY) * (directionY));
+      float length = sqrtf(pow(directionX, 2) + pow(directionY, 2));
 
       // Calculating the positions of the triangle corners
       // positionTriangleCorner = position + (direction * (radius / length))
@@ -446,7 +430,7 @@ public:
 
       // TODO: refactor these drawing routines to be more concise and efficient; we are using too many if statements
       // Drawing the edges (color depends on mode and whether it's in the path)
-      if (e_Mode == DIJKSTRA && EdgeIsInPath(edge.source, edge.target))
+      if (e_Mode == DIJKSTRA and EdgeIsInPath(edge.source, edge.target))
       {
         DrawLine(sourceX, sourceY, targetX, targetY, olc::GREEN);
       }
@@ -466,7 +450,7 @@ public:
     for (auto const &vertex : v_Vertices)
     {
       // Drawing the vertices (color depends on mode and whether it's in the path)
-      if (e_Mode == DIJKSTRA && VertexIsInPath(vertex.id))
+      if (e_Mode == DIJKSTRA and VertexIsInPath(vertex.id))
       {
         FillCircle(vertex.positionX, vertex.positionY, i_Radius, olc::GREEN);
       }
@@ -476,7 +460,7 @@ public:
       }
 
       // The selected circle is highlighted magenta
-      if (vertex.id == i_SelectedVertex)
+      if (p_SelectedVertex != nullptr and vertex.id == p_SelectedVertex->id)
       {
         FillCircle(vertex.positionX, vertex.positionY, i_Radius, olc::MAGENTA);
       }
@@ -518,18 +502,12 @@ public:
   // Returns true, if the edge is part of the shortest path
   bool EdgeIsInPath(int const &sourceId, int const &targetId)
   {
-    if (v_Path.empty())
-    {
-      return false;
-    }
+    if (v_Path.empty()) return false;
 
     for (int i = 0; i < v_Path.size() - 1; i++)
     {
       // If the current path element is the source and the next the target, return true
-      if (sourceId == v_Path[i] && targetId == v_Path[i + 1])
-      {
-        return true;
-      }
+      if (sourceId == v_Path[i] and targetId == v_Path[i + 1]) return true;
     }
 
     return false;
@@ -540,10 +518,7 @@ public:
   {
     for (auto const &point : v_Path)
     {
-      if (point == id)
-      {
-        return true;
-      }
+      if (point == id) return true;
     }
 
     return false;
@@ -586,7 +561,7 @@ public:
   void FindShortestPath()
   {
     // If either the beginning or end are not set, return
-    if (i_Start == -1 || i_End == -1)
+    if (i_Start == -1 or i_End == -1)
     {
       return;
     }
@@ -667,7 +642,7 @@ public:
       }
     }
 
-    // ! This is not a good solution
+    // HACK This is not a good solution
     return 0.0f;
   }
 
@@ -683,7 +658,7 @@ public:
       }
     }
 
-    // ! This is not a good solution
+    // HACK This is not a good solution
     return 0.0f;
   }
 
@@ -783,7 +758,7 @@ public:
     // Deletes all edges coming from or going to the selected/deleted vertex
     for (int i = 0; i < v_Edges.size(); i++)
     {
-      if (v_Edges[i].source == _id || v_Edges[i].target == _id)
+      if (v_Edges[i].source == _id or v_Edges[i].target == _id)
       {
         v_Edges.erase(v_Edges.begin() + i);
         i--;
@@ -798,14 +773,13 @@ public:
   void CreateNewEdge()
   {
     // If no vertex has been selected yet
-    if (i_SelectedVertex == -1)
+    if (p_SelectedVertex == nullptr)
     {
-
       for (auto &vertex : v_Vertices)
       {
-        if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
+        if (p_SelectedVertex != nullptr and IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
         {
-          i_SelectedVertex = vertex.id;
+          p_SelectedVertex->id = vertex.id;
         }
       }
     }
@@ -814,30 +788,29 @@ public:
       for (auto &vertex : v_Vertices)
       {
         // Don't create an edge from the vertex to itself
-        if (vertex.id != i_SelectedVertex)
-          if (IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
+        if (vertex.id != p_SelectedVertex->id and IsPointInCircle(vertex.positionX, vertex.positionY, i_Radius, mouse.x, mouse.y))
+        {
+          for (auto const &edge : v_Edges)
           {
-            for (auto const &edge : v_Edges)
+            // Don't create a duplicate edge
+            if (edge.source == p_SelectedVertex->id and edge.target == vertex.id)
             {
-              // Don't create a duplicate edge
-              if (edge.source == i_SelectedVertex && edge.target == vertex.id)
-              {
-                i_SelectedVertex = -1;
-                return;
-              }
-              // Don't create a bidirectional edge
-              if (edge.target == i_SelectedVertex && edge.source == vertex.id)
-              {
-                i_SelectedVertex = -1;
-                return;
-              }
+              p_SelectedVertex = nullptr;
+              return;
             }
-
-            v_Edges.push_back(s_Edge(i_SelectedVertex, vertex.id, i_EdgeLength));
+            // Don't create a bidirectional edge
+            if (edge.target == p_SelectedVertex->id and edge.source == vertex.id)
+            {
+              p_SelectedVertex = nullptr;
+              return;
+            }
           }
+
+          v_Edges.push_back(s_Edge(p_SelectedVertex->id, vertex.id, i_EdgeLength));
+        }
       }
 
-      i_SelectedVertex = -1;
+      p_SelectedVertex = nullptr;
     }
 
     b_ChangeHasOccurred = true;
@@ -852,7 +825,7 @@ public:
       {
         for (int i = 0; i < v_Edges.size(); i++)
         {
-          if (v_Edges[i].source == i_SelectedVertex && v_Edges[i].target == vertex.id)
+          if (p_SelectedVertex != nullptr and v_Edges[i].source == p_SelectedVertex->id and v_Edges[i].target == vertex.id)
           {
             v_Edges.erase(v_Edges.begin() + i);
           }
@@ -860,7 +833,7 @@ public:
       }
     }
 
-    i_SelectedVertex = -1;
+    p_SelectedVertex = nullptr;
     b_ChangeHasOccurred = true;
   }
 
