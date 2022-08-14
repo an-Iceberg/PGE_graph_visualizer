@@ -61,11 +61,12 @@ public:
 
     ChangeModeWithKeys();
     HandleClearEverything();
-
-    PaintUI();
+    HandleMouseInput();
 
     PaintLines();
     PaintNodes();
+
+    PaintUI();
 
     return true;
   }
@@ -78,14 +79,12 @@ public:
 private:
   void ChangeModeWithKeys()
   {
-    if (GetKey(olc::RIGHT).bPressed)
-    {
-      IncrementMode();
-    }
-    else if (GetKey(olc::LEFT).bPressed)
-    {
-      DecrementMode();
-    }
+    if (GetKey(olc::RIGHT).bPressed) IncrementMode();
+    else if (GetKey(olc::LEFT).bPressed) DecrementMode();
+    else if (GetKey(olc::M).bPressed) mode = MOVE;
+    else if (GetKey(olc::N).bPressed) mode = NODE;
+    else if (GetKey(olc::L).bPressed) mode = LINE;
+    else if (GetKey(olc::P).bPressed) mode = PATH;
   }
 
   void HandleClearEverything()
@@ -95,6 +94,61 @@ private:
     {
       lines.clear();
       nodes.clear();
+    }
+  }
+
+  void HandleMouseInput()
+  {
+    if (mode == MOVE)
+    {
+    }
+    else if (mode == NODE)
+    {
+      // Create node on primary mouse click
+      if (GetMouseY() > UISectionHeight and GetMouse(0).bPressed)
+      {
+        // Only create a new node if it does not overlap with any existing one
+        for (const auto& node : nodes)
+        {
+          // Giving the mouse a bit of a deadzone around it just to be safe
+          if (DoCirclesOverlap(node.second, {GetMouseX() + 2, GetMouseY() + 2})) return;
+        }
+
+        // TODO: generate index properly
+        nodes[nodes.size() + 1] = {GetMouseX(), GetMouseY()};
+      }
+      // Deleting a node and all lines coming/going from/to it
+      else if (GetMouse(1).bPressed)
+      {
+        int nodeIndex = -1;
+
+        // Deleting the node
+        for (const auto& node : nodes)
+        {
+          if (DoCirclesOverlap(node.second, {GetMouseX(), GetMouseY()}))
+          {
+            nodeIndex = node.first;
+            nodes.erase(node.first);
+            break;
+          }
+        }
+
+        // Deleting all lines associated with said node
+        for (std::vector<line>::iterator line = lines.begin(); line < lines.end(); line++)
+        {
+          if (line->from == nodeIndex or line->to == nodeIndex)
+          {
+            lines.erase(line);
+            line--;
+          }
+        }
+      }
+    }
+    else if (mode == LINE)
+    {
+    }
+    else if (mode == PATH)
+    {
     }
   }
 
@@ -110,26 +164,64 @@ private:
     std::string modeString;
 
     // TODO: implement mouse hover
+    // Painting the mode selector
     if (mode == MOVE)
     {
       modeString = "Mode: [M] N  L  P";
       DrawString({10, 10}, modeString, olc::GREY, 2);
-      // DrawRect({108, 10}, {40, 14}, olc::VERY_DARK_RED);
+      DrawString({106, 10}, "[M]", olc::WHITE, 2);
+      DrawString({298, 10}, ">", olc::MAGENTA, 2);
     }
     else if (mode == NODE)
     {
       modeString = "Mode:  M [N] L  P";
       DrawString({10, 10}, modeString, olc::GREY, 2);
+      DrawString({154, 10}, "[N]", olc::WHITE, 2);
+      DrawString({90, 10}, "<", olc::MAGENTA, 2);
+      DrawString({298, 10}, ">", olc::MAGENTA, 2);
     }
     else if (mode == LINE)
     {
       modeString = "Mode:  M  N [L] P";
       DrawString({10, 10}, modeString, olc::GREY, 2);
+      DrawString({202, 10}, "[L]", olc::WHITE, 2);
+      DrawString({90, 10}, "<", olc::MAGENTA, 2);
+      DrawString({298, 10}, ">", olc::MAGENTA, 2);
     }
     else if (mode == PATH)
     {
       modeString = "Mode:  M  N  L [P]";
       DrawString({10, 10}, modeString, olc::GREY, 2);
+      DrawString({250, 10}, "[P]", olc::WHITE, 2);
+      DrawString({90, 10}, "<", olc::MAGENTA, 2);
+    }
+
+    // Hover on 'M'
+    if (mode != MOVE and IsMouseInRect({119, 7}, {18, 19}))
+    {
+      DrawString({122, 10}, "M", olc::MAGENTA, 2);
+      if (GetMouse(0).bPressed) mode = MOVE;
+    }
+
+    // Hover on 'N'
+    if (mode != NODE and IsMouseInRect({168, 7}, {18, 19}))
+    {
+      DrawString({170, 10}, "N", olc::MAGENTA, 2);
+      if (GetMouse(0).bPressed) mode = NODE;
+    }
+
+    // Hover on 'L'
+    if (mode != LINE and IsMouseInRect({216, 7}, {18, 19}))
+    {
+      DrawString({218, 10}, "L", olc::MAGENTA, 2);
+      if (GetMouse(0).bPressed) mode = LINE;
+    }
+
+    // Hover on 'P'
+    if (mode != PATH and IsMouseInRect({263, 7}, {18, 19}))
+    {
+      DrawString({266, 10}, "P", olc::MAGENTA, 2);
+      if (GetMouse(0).bPressed) mode = PATH;
     }
 
     std::string mouseCoordinates = "x:{x} y:{y}";
@@ -186,58 +278,58 @@ private:
     {
       // Node color changes if it is the selected node that is being moved around
       FillCircle(node.second.x, node.second.y, radius, (&node.second == selectedNode ? olc::MAGENTA : olc::Pixel(255, 128, 0)));
+      // TODO: adjust number position for numbers larger than 10 to fit into circle properly
       DrawString(node.second.x - 7, node.second.y - 6, std::to_string(node.first), olc::BLACK, 2);
 
-      // A node gets an outline on hover
-      if (IsMouseInCircle(node.second)) DrawCircle(node.second.x, node.second.y, radius + 5, olc::MAGENTA);
+      // A node gets an outline on hover but ony in MOVE mode
+      if (mode == MOVE and IsMouseInCircle(node.second)) DrawCircle(node.second.x, node.second.y, radius + 5, olc::MAGENTA);
     }
   }
 
-  void IncrementMode()
-  {
-    if (mode == MOVE)
-    {
-      mode = NODE;
-    }
-    else if (mode == NODE)
-    {
-      mode = LINE;
-    }
-    else if (mode == LINE)
-    {
-      mode = PATH;
-    }
+  void IncrementMode() {
+    if (mode == MOVE) mode = NODE;
+    else if (mode == NODE) mode = LINE;
+    else if (mode == LINE) mode = PATH;
   }
 
-  void DecrementMode()
-  {
-    if (mode == PATH)
-    {
-      mode = LINE;
-    }
-    else if (mode == LINE)
-    {
-      mode = NODE;
-    }
-    else if (mode == NODE)
-    {
-      mode = MOVE;
-    }
+  void DecrementMode() {
+    if (mode == PATH) mode = LINE;
+    else if (mode == LINE) mode = NODE;
+    else if (mode == NODE) mode = MOVE;
   }
 
-  // Returns true if two nodes overlap
-  bool DoCirclesOverlap(const olc::vi2d& circle1, const olc::vi2d& circle2)
-  {
-    return fabs(pow((circle1.x - circle2.x), 2) + pow((circle1.y - circle2.y), 2)) <= pow(4 * radius, 2);
+  bool DoCirclesOverlap(const olc::vi2d& circle1, const olc::vi2d& circle2) {
+    return fabs(pow((circle1.x - circle2.x), 2) + pow((circle1.y - circle2.y), 2)) <= pow(2 * radius, 2);
+  }
+  bool DoCirclesOverlap(const int& x1, const int& y1, const int& x2, const int& y2) {
+    return fabs(pow((x1 - x2), 2) + pow((y1 - y2), 2)) <= pow(2 * radius, 2);
   }
 
-  // Returns true if the mouse is inside a specified node
-  bool IsMouseInCircle(const olc::vi2d& circle)
-  {
+  bool IsMouseInCircle(const olc::vi2d& circle) {
     return fabs(pow((circle.x - GetMouseX()), 2) + pow((circle.y - GetMouseY()), 2)) < pow(radius, 2);
   }
+  bool IsMouseInCircle(const int& x, const int& y) {
+    return fabs(pow((x - GetMouseX()), 2) + pow((y - GetMouseY()), 2)) < pow(radius, 2);
+  }
 
-  // Functions similar to str_replace in php
+  bool IsMouseInRect(const olc::vi2d& position, const olc::vi2d& dimensions) {
+    if (GetMouseX() < position.x) return false;
+    if (GetMouseY() < position.y) return false;
+    if (GetMouseX() > position.x + dimensions.x) return false;
+    if (GetMouseY() > position.y + dimensions.y) return false;
+
+    return true;
+  }
+  bool IsMouseInRect(const int& x, const int& y, const int& width, const int& height) {
+    if (GetMouseX() < x) return false;
+    if (GetMouseY() < y) return false;
+    if (GetMouseX() > x + width) return false;
+    if (GetMouseY() > y + height) return false;
+
+    return true;
+  }
+
+  // Replaces the given keys with the values of 'replacements' in the 'string'
   std::string str_replace(std::string string, std::unordered_map<std::string, std::string> replacements)
   {
     for (const auto& replacement : replacements)
