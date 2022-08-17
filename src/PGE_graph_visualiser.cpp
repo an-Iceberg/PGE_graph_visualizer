@@ -28,16 +28,16 @@ struct line
 class PGE_graph_visualiser : public olc::PixelGameEngine
 {
 public:
-  PGE_graph_visualiser()
-  {
-    sAppName = "PGE Graph Visualiser";
-  }
+  PGE_graph_visualiser() { sAppName = "PGE Graph Visualiser"; }
 
 private:
   int UISectionHeight = 100;
   int radius = 12;
+  int selectedNode = 0;
+  int lineLength = 1;
+  int start = 0;
+  int end = 0;
   mode mode = MOVE;
-  olc::vi2d* selectedNode = nullptr;
   std::vector<line> lines;
   std::map<int, olc::vi2d> nodes; // The key serves as the ID of the node
 
@@ -57,16 +57,18 @@ public:
 
   bool OnUserUpdate(float elapsedTime) override
   {
-    Clear(olc::BLACK);
+    if (IsFocused())
+    {
+      Clear(olc::BLACK);
 
-    ChangeModeWithKeys();
-    HandleClearEverything();
-    HandleMouseInput();
+      HandleModeChange();
+      HandleInput();
 
-    PaintLines();
-    PaintNodes();
+      PaintLines();
+      PaintNodes();
 
-    PaintUI();
+      PaintUI();
+    }
 
     return true;
   }
@@ -77,30 +79,27 @@ public:
 
   // TODO: implement input handling
 private:
-  void ChangeModeWithKeys()
+  void HandleModeChange()
   {
-    if (GetKey(olc::RIGHT).bPressed) IncrementMode();
-    else if (GetKey(olc::LEFT).bPressed) DecrementMode();
-    else if (GetKey(olc::M).bPressed) mode = MOVE;
+    if (GetKey(olc::M).bPressed) mode = MOVE;
     else if (GetKey(olc::N).bPressed) mode = NODE;
     else if (GetKey(olc::L).bPressed) mode = LINE;
     else if (GetKey(olc::P).bPressed) mode = PATH;
   }
 
-  void HandleClearEverything()
-  {
-    // If user presses delete or backspace they delete all nodes and lines
-    if (GetKey(olc::BACK).bPressed or GetKey(olc::DEL).bPressed)
-    {
-      lines.clear();
-      nodes.clear();
-    }
-  }
-
-  void HandleMouseInput()
+  void HandleInput()
   {
     if (mode == MOVE)
     {
+      // The node which the mouse is hovering over is being selected
+      if (GetMouse(0).bPressed)
+      {
+        for (const auto& node : nodes) if (IsMouseInCircle(node.second)) selectedNode = node.first;
+      }
+      // Moving the node around
+      else if (GetMouse(0).bHeld and selectedNode != 0) nodes[selectedNode] = {GetMouseX(), GetMouseY()};
+      // Releasing the node from our iron grip
+      else if (GetMouse(0).bReleased) selectedNode = 0;
     }
     else if (mode == NODE)
     {
@@ -114,122 +113,161 @@ private:
           if (DoCirclesOverlap(node.second, {GetMouseX() + 2, GetMouseY() + 2})) return;
         }
 
-        // TODO: generate index properly
-        nodes[nodes.size() + 1] = {GetMouseX(), GetMouseY()};
+        // Creating a new node
+        nodes[GenerateNodeID()] = {GetMouseX(), GetMouseY()};
       }
       // Deleting a node and all lines coming/going from/to it
       else if (GetMouse(1).bPressed)
       {
-        int nodeIndex = -1;
-
-        // Deleting the node
+        // Finding the node
         for (const auto& node : nodes)
         {
           if (DoCirclesOverlap(node.second, {GetMouseX(), GetMouseY()}))
           {
-            nodeIndex = node.first;
+            // Deleting all lines associated with said node
+            for (std::vector<line>::iterator line = lines.begin(); line < lines.end(); line++)
+            {
+              if (line->from == node.first or line->to == node.first)
+              {
+                lines.erase(line);
+                line--;
+              }
+            }
+
+            // Deleting the node
             nodes.erase(node.first);
             break;
           }
         }
+      }
 
-        // Deleting all lines associated with said node
-        for (std::vector<line>::iterator line = lines.begin(); line < lines.end(); line++)
-        {
-          if (line->from == nodeIndex or line->to == nodeIndex)
-          {
-            lines.erase(line);
-            line--;
-          }
-        }
+      // If user presses delete or backspace they delete all nodes and lines
+      if (GetKey(olc::BACK).bPressed or GetKey(olc::DEL).bPressed)
+      {
+        lines.clear();
+        nodes.clear();
       }
     }
     else if (mode == LINE)
     {
+      if (GetMouse(0).bPressed)
+      {
+      }
+      else if (GetMouse(0).bHeld)
+      {
+      }
+      else if (GetMouse(0).bReleased)
+      {
+      }
+
+      // If user presses delete or backspace they delete all lines
+      if (GetKey(olc::BACK).bPressed or GetKey(olc::DEL).bPressed) lines.clear();
     }
     else if (mode == PATH)
     {
+      if (GetMouse(0).bPressed)
+      {
+      }
+
+      if (GetMouse(1).bPressed)
+      {
+      }
+
+      if (GetKey(olc::ENTER).bPressed)
+      {
+      }
+
+      // Clearing the start and end node
+      if (GetKey(olc::BACK).bPressed or GetKey(olc::DEL).bPressed)
+      {
+      }
     }
   }
 
   void PaintUI()
   {
     // Draws a border around the UI section
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 6; i++)
     {
       DrawRect(0 + i, 0 + i, ScreenWidth() - ((2 * i) + 1), UISectionHeight - ((2 * i) + 1), olc::Pixel(128, 0, 255));
     }
-    FillRect(5, 5, ScreenWidth() - 10, UISectionHeight - 10, olc::VERY_DARK_CYAN);
+    FillRect(6, 6, ScreenWidth() - 12, UISectionHeight - 12, olc::VERY_DARK_CYAN);
 
-    std::string modeString;
-
-    // TODO: implement mouse hover
+    // TODO: rework mode UI element
     // Painting the mode selector
     if (mode == MOVE)
     {
-      modeString = "Mode: [M] N  L  P";
-      DrawString({10, 10}, modeString, olc::GREY, 2);
-      DrawString({106, 10}, "[M]", olc::WHITE, 2);
-      DrawString({298, 10}, ">", olc::MAGENTA, 2);
+      DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
+      DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
+      DrawString({91, 10}, "[ ]", olc::WHITE, 2);
+      DrawStringProp({285, 10}, "- Move", olc::GREY, 2);
+
+      if (selectedNode == 0)
+      {
+        DrawStringProp({10, 29}, "Left Mouse: hold to move a node around", olc::GREY, 2);
+        DrawStringProp({10, 29}, "Left Mouse:", olc::MAGENTA, 2);
+      }
+      else DrawStringProp({10, 29}, "Release to place node", olc::GREY, 2);
     }
     else if (mode == NODE)
     {
-      modeString = "Mode:  M [N] L  P";
-      DrawString({10, 10}, modeString, olc::GREY, 2);
-      DrawString({154, 10}, "[N]", olc::WHITE, 2);
-      DrawString({90, 10}, "<", olc::MAGENTA, 2);
-      DrawString({298, 10}, ">", olc::MAGENTA, 2);
+      DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
+      DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
+      DrawString({139, 10}, "[ ]", olc::WHITE, 2);
+      DrawStringProp({285, 10}, "- Node", olc::GREY, 2);
+
+      DrawStringProp({10, 29}, "Left Mouse: create a node", olc::GREY, 2);
+      DrawStringProp({10, 29}, "Left Mouse", olc::MAGENTA, 2);
+      DrawStringProp({10, 48}, "Right Mouse: delete a node", olc::GREY, 2);
+      DrawStringProp({10, 48}, "Right Mouse", olc::MAGENTA, 2);
     }
     else if (mode == LINE)
     {
-      modeString = "Mode:  M  N [L] P";
-      DrawString({10, 10}, modeString, olc::GREY, 2);
-      DrawString({202, 10}, "[L]", olc::WHITE, 2);
-      DrawString({90, 10}, "<", olc::MAGENTA, 2);
-      DrawString({298, 10}, ">", olc::MAGENTA, 2);
+      DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
+      DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
+      DrawString({187, 10}, "[ ]", olc::WHITE, 2);
+      DrawStringProp({285, 10}, "- Line", olc::GREY, 2);
     }
     else if (mode == PATH)
     {
-      modeString = "Mode:  M  N  L [P]";
-      DrawString({10, 10}, modeString, olc::GREY, 2);
-      DrawString({250, 10}, "[P]", olc::WHITE, 2);
-      DrawString({90, 10}, "<", olc::MAGENTA, 2);
+      DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
+      DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
+      DrawString({235, 10}, "[ ]", olc::WHITE, 2);
+      DrawStringProp({285, 10}, "- Path", olc::GREY, 2);
     }
 
+    // TODO: implement hover differently
     // Hover on 'M'
-    if (mode != MOVE and IsMouseInRect({119, 7}, {18, 19}))
+    if (mode != MOVE and IsMouseInRect({103, 7}, {18, 19}))
     {
-      DrawString({122, 10}, "M", olc::MAGENTA, 2);
+      DrawString({91, 10}, "[ ]", olc::GREY, 2);
       if (GetMouse(0).bPressed) mode = MOVE;
     }
-
     // Hover on 'N'
-    if (mode != NODE and IsMouseInRect({168, 7}, {18, 19}))
+    else if (mode != NODE and IsMouseInRect({151, 7}, {18, 19}))
     {
-      DrawString({170, 10}, "N", olc::MAGENTA, 2);
+      DrawString({139, 10}, "[ ]", olc::GREY, 2);
       if (GetMouse(0).bPressed) mode = NODE;
     }
-
     // Hover on 'L'
-    if (mode != LINE and IsMouseInRect({216, 7}, {18, 19}))
+    else if (mode != LINE and IsMouseInRect({200, 7}, {18, 19}))
     {
-      DrawString({218, 10}, "L", olc::MAGENTA, 2);
+      DrawString({187, 10}, "[ ]", olc::GREY, 2);
       if (GetMouse(0).bPressed) mode = LINE;
     }
-
     // Hover on 'P'
-    if (mode != PATH and IsMouseInRect({263, 7}, {18, 19}))
+    else if (mode != PATH and IsMouseInRect({247, 7}, {18, 19}))
     {
-      DrawString({266, 10}, "P", olc::MAGENTA, 2);
+      DrawString({235, 10}, "[ ]", olc::GREY, 2);
       if (GetMouse(0).bPressed) mode = PATH;
     }
 
-    std::string mouseCoordinates = "x:{x} y:{y}";
-    std::unordered_map<std::string, std::string> coordinates {
-      {"{x}", std::to_string(GetMouseX())},
-      {"{y}", std::to_string(GetMouseY())},
-    };
-    DrawStringProp(ScreenWidth() - 83, 5, str_replace(mouseCoordinates, coordinates), olc::GREY);
+    // std::string mouseCoordinates = "x:{x} y:{y}";
+    // std::unordered_map<std::string, std::string> coordinates {
+    //   {"{x}", std::to_string(GetMouseX())},
+    //   {"{y}", std::to_string(GetMouseY())},
+    // };
+    // DrawStringProp(ScreenWidth() - 83, 5, str_replace(mouseCoordinates, coordinates), olc::GREY);
   }
 
   void PaintLines()
@@ -274,28 +312,44 @@ private:
 
   void PaintNodes()
   {
+    int nodeHoverID = 0;
+
     for (const auto& node : nodes)
     {
       // Node color changes if it is the selected node that is being moved around
-      FillCircle(node.second.x, node.second.y, radius, (&node.second == selectedNode ? olc::MAGENTA : olc::Pixel(255, 128, 0)));
+      FillCircle(node.second.x, node.second.y, radius, (node.first == selectedNode ? olc::MAGENTA : olc::Pixel(255, 128, 0)));
       // TODO: adjust number position for numbers larger than 10 to fit into circle properly
       DrawString(node.second.x - 7, node.second.y - 6, std::to_string(node.first), olc::BLACK, 2);
 
       // A node gets an outline on hover but ony in MOVE mode
-      if (mode == MOVE and IsMouseInCircle(node.second)) DrawCircle(node.second.x, node.second.y, radius + 5, olc::MAGENTA);
+      if (mode == MOVE and IsMouseInCircle(node.second)) nodeHoverID = node.first;
+    }
+
+    // Painting circles around hovered node (only if it isn't being moved)
+    if (mode == MOVE and selectedNode == 0 and nodeHoverID != 0)
+    {
+      DrawCircle(nodes[nodeHoverID].x, nodes[nodeHoverID].y, radius + 4, olc::BLACK);
+      DrawCircle(nodes[nodeHoverID].x, nodes[nodeHoverID].y, radius + 5, olc::MAGENTA);
+      DrawCircle(nodes[nodeHoverID].x, nodes[nodeHoverID].y, radius + 6, olc::BLACK);
     }
   }
 
-  void IncrementMode() {
-    if (mode == MOVE) mode = NODE;
-    else if (mode == NODE) mode = LINE;
-    else if (mode == LINE) mode = PATH;
-  }
+  // FIX: sometimes, when all nodes are cleared, only one node with id 1 is being created
+  // Finds the smallest missing number in this sequence of numbers (node IDs) otherwise a new ID is created
+  int GenerateNodeID()
+  {
+    // This is the ID that is expected to be there when we go through all the nodes
+    int id = 1;
+    for (const auto& node : nodes)
+    {
+      // We found a node whose ID does not match our expectation (bigger than $id), so we return the wanted ID
+      if (node.first != id) return id;
 
-  void DecrementMode() {
-    if (mode == PATH) mode = LINE;
-    else if (mode == LINE) mode = NODE;
-    else if (mode == NODE) mode = MOVE;
+      id++;
+    }
+
+    // All nodes have the expected ID, so we generate a new one
+    return nodes.size() + 1;
   }
 
   bool DoCirclesOverlap(const olc::vi2d& circle1, const olc::vi2d& circle2) {
@@ -330,15 +384,15 @@ private:
   }
 
   // Replaces the given keys with the values of 'replacements' in the 'string'
-  std::string str_replace(std::string string, std::unordered_map<std::string, std::string> replacements)
-  {
-    for (const auto& replacement : replacements)
-    {
-      string.replace(string.find(replacement.first), std::string(replacement.first).size(), replacement.second);
-    }
+  // std::string str_replace(std::string string, std::unordered_map<std::string, std::string> replacements)
+  // {
+  //   for (const auto& replacement : replacements)
+  //   {
+  //     string.replace(string.find(replacement.first), std::string(replacement.first).size(), replacement.second);
+  //   }
 
-    return string;
-  }
+  //   return string;
+  // }
 };
 
 int main()
