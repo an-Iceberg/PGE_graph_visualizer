@@ -77,7 +77,6 @@ public:
   // ----------
 
 
-  // TODO: implement input handling
 private:
   void HandleModeChange()
   {
@@ -97,7 +96,15 @@ private:
         for (const auto& node : nodes) if (IsMouseInCircle(node.second)) selectedNode = node.first;
       }
       // Moving the node around
-      else if (GetMouse(0).bHeld and selectedNode != 0) nodes[selectedNode] = {GetMouseX(), GetMouseY()};
+      else if (GetMouse(0).bHeld and selectedNode != 0)
+      {
+        nodes[selectedNode] = {GetMouseX(), GetMouseY()};
+
+        if (nodes[selectedNode].x < 0 + radius) nodes[selectedNode].x = 0 + radius;
+        if (nodes[selectedNode].y < UISectionHeight + radius) nodes[selectedNode].y = UISectionHeight + radius;
+        if (nodes[selectedNode].x > ScreenWidth() - radius) nodes[selectedNode].x = ScreenWidth() - radius;
+        if (nodes[selectedNode].y > ScreenHeight() - radius) nodes[selectedNode].y = ScreenHeight() - radius;
+      }
       // Releasing the node from our iron grip
       else if (GetMouse(0).bReleased) selectedNode = 0;
     }
@@ -125,6 +132,7 @@ private:
           if (DoCirclesOverlap(node.second, {GetMouseX(), GetMouseY()}))
           {
             // Deleting all lines associated with said node
+            // Using an iterator because only an iterator allows one to delete an element
             for (std::vector<line>::iterator line = lines.begin(); line < lines.end(); line++)
             {
               if (line->from == node.first or line->to == node.first)
@@ -148,31 +156,109 @@ private:
         nodes.clear();
       }
     }
+    // TODO: line mode input
     else if (mode == LINE)
     {
       if (GetMouse(0).bPressed)
       {
+        // Select a node but only if none have already been selected
+        if (selectedNode == 0)
+        {
+          bool ANodeHasBeenSelected = false;
+
+          for (const auto& node : nodes)
+          {
+            if (not IsMouseInCircle(node.second)) continue;
+
+            selectedNode = node.first;
+            ANodeHasBeenSelected = true;
+            break;
+          }
+
+          if (not ANodeHasBeenSelected) selectedNode = 0;
+        }
+        // Create a new line but only if that line doesn't exist yet
+        else
+        {
+          for (const auto& node : nodes)
+          {
+            if (not IsMouseInCircle(node.second)) continue;
+
+            // TODO: refactor this
+            bool lineExistsAlready = false;
+
+            // Only creating a new line if none exists yet in either direction
+            for (const auto& aLine : lines)
+            {
+              // Ignore the line if it already exists
+              if ((aLine.from == node.first and aLine.to == selectedNode) or (aLine.from == selectedNode and aLine.to == node.first))
+              {
+                lineExistsAlready = true;
+                break;
+              }
+            }
+
+            if (not lineExistsAlready) lines.push_back(line(selectedNode, node.first, lineLength));
+          }
+
+          selectedNode = 0;
+        }
       }
-      else if (GetMouse(0).bHeld)
+      // Delete a line with right click
+      else if (GetMouse(1).bPressed)
       {
+        // Only delete a line if a node has been selected
+        if (selectedNode != 0)
+        {
+          for (const auto& node : nodes)
+          {
+            if (not IsMouseInCircle(node.second)) continue;
+
+            // Using an iterator because it allows for element deletion
+            for (std::vector<line>::iterator line = lines.begin(); line < lines.end(); line++)
+            {
+              if (not (line->from == selectedNode and line->to == node.first)) continue;
+
+              lines.erase(line);
+              line--;
+            }
+          }
+
+          selectedNode = 0;
+        }
       }
-      else if (GetMouse(0).bReleased)
+
+      if (GetKey(olc::RIGHT).bPressed)
       {
+        lineLength++;
+
+        if (lineLength > 99) lineLength = 99;
+      }
+      else if (GetKey(olc::LEFT).bPressed)
+      {
+        lineLength--;
+
+        if (lineLength < 1) lineLength = 1;
       }
 
       // If user presses delete or backspace they delete all lines
       if (GetKey(olc::BACK).bPressed or GetKey(olc::DEL).bPressed) lines.clear();
     }
+    // TODO: path mode input
+    // TODO: user adjustable line length with arrow keys
     else if (mode == PATH)
     {
+      // Select a node to be the start
       if (GetMouse(0).bPressed)
       {
       }
 
+      // Select a node to be the end
       if (GetMouse(1).bPressed)
       {
       }
 
+      // Calculate the path
       if (GetKey(olc::ENTER).bPressed)
       {
       }
@@ -193,7 +279,6 @@ private:
     }
     FillRect(6, 6, ScreenWidth() - 12, UISectionHeight - 12, olc::VERY_DARK_CYAN);
 
-    // TODO: rework mode UI element
     // Painting the mode selector
     if (mode == MOVE)
     {
@@ -227,6 +312,21 @@ private:
       DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
       DrawString({187, 10}, "[ ]", olc::WHITE, 2);
       DrawStringProp({285, 10}, "- Line", olc::GREY, 2);
+
+      if (selectedNode == 0)
+      {
+        DrawStringProp({10, 29}, "Left Mouse: select a node", olc::GREY, 2);
+        DrawStringProp({10, 29}, "Left Mouse:", olc::MAGENTA, 2);
+      }
+      else
+      {
+        DrawStringProp({10, 29}, "Left Mouse: select another node to create a new line", olc::GREY, 2);
+        DrawStringProp({10, 29}, "Left Mouse", olc::MAGENTA, 2);
+        DrawStringProp({10, 48}, "Right Mouse: select another node to delete a line", olc::GREY, 2);
+        DrawStringProp({10, 48}, "Right Mouse", olc::MAGENTA, 2);
+      }
+
+      DrawString({10, 67}, "<" + (lineLength < 10 ? '0' + std::to_string(lineLength) : std::to_string(lineLength)) + ">", olc::GREY, 2);
     }
     else if (mode == PATH)
     {
@@ -236,7 +336,6 @@ private:
       DrawStringProp({285, 10}, "- Path", olc::GREY, 2);
     }
 
-    // TODO: implement hover differently
     // Hover on 'M'
     if (mode != MOVE and IsMouseInRect({103, 7}, {18, 19}))
     {
@@ -312,8 +411,6 @@ private:
 
   void PaintNodes()
   {
-    int nodeHoverID = 0;
-
     for (const auto& node : nodes)
     {
       // Node color changes if it is the selected node that is being moved around
@@ -321,16 +418,13 @@ private:
       // TODO: adjust number position for numbers larger than 10 to fit into circle properly
       DrawString(node.second.x - 7, node.second.y - 6, std::to_string(node.first), olc::BLACK, 2);
 
-      // A node gets an outline on hover but ony in MOVE mode
-      if (mode == MOVE and IsMouseInCircle(node.second)) nodeHoverID = node.first;
-    }
-
-    // Painting circles around hovered node (only if it isn't being moved)
-    if (mode == MOVE and selectedNode == 0 and nodeHoverID != 0)
-    {
-      DrawCircle(nodes[nodeHoverID].x, nodes[nodeHoverID].y, radius + 4, olc::BLACK);
-      DrawCircle(nodes[nodeHoverID].x, nodes[nodeHoverID].y, radius + 5, olc::MAGENTA);
-      DrawCircle(nodes[nodeHoverID].x, nodes[nodeHoverID].y, radius + 6, olc::BLACK);
+      // A node gets an outline on hover execpt in NODE mode
+      if (mode != NODE and IsMouseInCircle(node.second))
+      {
+        DrawCircle(nodes[node.first].x, nodes[node.first].y, radius + 4, olc::BLACK);
+        DrawCircle(nodes[node.first].x, nodes[node.first].y, radius + 5, olc::MAGENTA);
+        DrawCircle(nodes[node.first].x, nodes[node.first].y, radius + 6, olc::BLACK);
+      }
     }
   }
 
@@ -367,20 +461,22 @@ private:
   }
 
   bool IsMouseInRect(const olc::vi2d& position, const olc::vi2d& dimensions) {
-    if (GetMouseX() < position.x) return false;
-    if (GetMouseY() < position.y) return false;
-    if (GetMouseX() > position.x + dimensions.x) return false;
-    if (GetMouseY() > position.y + dimensions.y) return false;
+    if (GetMouseX() < position.x or GetMouseY() < position.y or GetMouseX() > position.x + dimensions.x or GetMouseY() > position.y + dimensions.y) return false;
 
     return true;
   }
   bool IsMouseInRect(const int& x, const int& y, const int& width, const int& height) {
-    if (GetMouseX() < x) return false;
-    if (GetMouseY() < y) return false;
-    if (GetMouseX() > x + width) return false;
-    if (GetMouseY() > y + height) return false;
+    if (GetMouseX() < x or GetMouseY() < y or GetMouseX() > x + width or GetMouseY() > y + height) return false;
 
     return true;
+  }
+
+  void PaintStartAndEnd()
+  {
+  }
+
+  void PaintPath()
+  {
   }
 
   // Replaces the given keys with the values of 'replacements' in the 'string'
