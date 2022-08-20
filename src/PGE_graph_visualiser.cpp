@@ -230,15 +230,11 @@ private:
 
       if (GetKey(olc::RIGHT).bPressed)
       {
-        lineLength++;
-
-        if (lineLength > 99) lineLength = 99;
+        IncrementLineLength();
       }
       else if (GetKey(olc::LEFT).bPressed)
       {
-        lineLength--;
-
-        if (lineLength < 1) lineLength = 1;
+        DecrementLineLength();
       }
 
       // If user presses delete or backspace they delete all lines
@@ -273,17 +269,16 @@ private:
   void PaintUI()
   {
     // Draws a border around the UI section
-    for (int i = 0; i < 6; i++)
-    {
-      DrawRect(0 + i, 0 + i, ScreenWidth() - ((2 * i) + 1), UISectionHeight - ((2 * i) + 1), olc::Pixel(128, 0, 255));
-    }
+    for (int i = 0; i < 6; i++) DrawRect(0 + i, 0 + i, ScreenWidth() - ((2 * i) + 1), UISectionHeight - ((2 * i) + 1), olc::Pixel(128, 0, 255));
     FillRect(6, 6, ScreenWidth() - 12, UISectionHeight - 12, olc::VERY_DARK_CYAN);
 
+    DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
+    DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
+
     // Painting the mode selector
+    // UI for MOVE
     if (mode == MOVE)
     {
-      DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
-      DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
       DrawString({91, 10}, "[ ]", olc::WHITE, 2);
       DrawStringProp({285, 10}, "- Move", olc::GREY, 2);
 
@@ -294,10 +289,9 @@ private:
       }
       else DrawStringProp({10, 29}, "Release to place node", olc::GREY, 2);
     }
+    // UI for NODE
     else if (mode == NODE)
     {
-      DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
-      DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
       DrawString({139, 10}, "[ ]", olc::WHITE, 2);
       DrawStringProp({285, 10}, "- Node", olc::GREY, 2);
 
@@ -306,10 +300,9 @@ private:
       DrawStringProp({10, 48}, "Right Mouse: delete a node", olc::GREY, 2);
       DrawStringProp({10, 48}, "Right Mouse", olc::MAGENTA, 2);
     }
+    // UI for LINE
     else if (mode == LINE)
     {
-      DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
-      DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
       DrawString({187, 10}, "[ ]", olc::WHITE, 2);
       DrawStringProp({285, 10}, "- Line", olc::GREY, 2);
 
@@ -326,12 +319,26 @@ private:
         DrawStringProp({10, 48}, "Right Mouse", olc::MAGENTA, 2);
       }
 
+      // Adjust line length
       DrawString({10, 67}, "<" + (lineLength < 10 ? '0' + std::to_string(lineLength) : std::to_string(lineLength)) + ">", olc::GREY, 2);
+      DrawString({10, 67}, "<", olc::MAGENTA, 2);
+      DrawString({58, 67}, ">", olc::MAGENTA, 2);
+
+      // Hover on arrow keys for line length
+      if (IsMouseInRect({8, 65}, {13, 17}))
+      {
+        DrawRect({8, 65}, {13, 17}, olc::GREY);
+        if (GetMouse(0).bPressed) DecrementLineLength();
+      }
+      else if (IsMouseInRect({58, 65}, {13, 17}))
+      {
+        DrawRect({58, 65}, {13, 17}, olc::GREY);
+        if (GetMouse(0).bPressed) IncrementLineLength();
+      }
     }
+    // UI for PATH
     else if (mode == PATH)
     {
-      DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
-      DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
       DrawString({235, 10}, "[ ]", olc::WHITE, 2);
       DrawStringProp({285, 10}, "- Path", olc::GREY, 2);
     }
@@ -428,6 +435,14 @@ private:
     }
   }
 
+  void PaintStartAndEnd()
+  {
+  }
+
+  void PaintPath()
+  {
+  }
+
   // FIX: sometimes, when all nodes are cleared, only one node with id 1 is being created
   // Finds the smallest missing number in this sequence of numbers (node IDs) otherwise a new ID is created
   int GenerateNodeID()
@@ -444,6 +459,16 @@ private:
 
     // All nodes have the expected ID, so we generate a new one
     return nodes.size() + 1;
+  }
+
+  void IncrementLineLength()
+  {
+    if (lineLength < 99) lineLength++;
+  }
+
+  void DecrementLineLength()
+  {
+    if (lineLength > 1) lineLength--;
   }
 
   bool DoCirclesOverlap(const olc::vi2d& circle1, const olc::vi2d& circle2) {
@@ -470,25 +495,6 @@ private:
 
     return true;
   }
-
-  void PaintStartAndEnd()
-  {
-  }
-
-  void PaintPath()
-  {
-  }
-
-  // Replaces the given keys with the values of 'replacements' in the 'string'
-  // std::string str_replace(std::string string, std::unordered_map<std::string, std::string> replacements)
-  // {
-  //   for (const auto& replacement : replacements)
-  //   {
-  //     string.replace(string.find(replacement.first), std::string(replacement.first).size(), replacement.second);
-  //   }
-
-  //   return string;
-  // }
 };
 
 int main()
