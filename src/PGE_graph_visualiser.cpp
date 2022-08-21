@@ -31,23 +31,25 @@ public:
   PGE_graph_visualiser() { sAppName = "PGE Graph Visualiser"; }
 
 private:
-  int UISectionHeight = 100;
+  int UI_section_height = 100;
   int radius = 12;
-  int selectedNode = 0;
-  int lineLength = 1;
+  int selected_node = 0;
+  int line_length = 1;
   int start = 0;
   int end = 0;
+  bool graph_has_changed = false;
   mode mode = MOVE;
   std::vector<line> lines;
   std::map<int, olc::vi2d> nodes; // The key serves as the ID of the node
+  std::vector<int> path;
 
 public:
   bool OnUserCreate() override
   {
     nodes[1] = {150, 150};
     nodes[2] = {200, 600};
-    nodes[3] = {1000, 600};
-    nodes[4] = {1000, 300};
+    nodes[3] = {1'000, 600};
+    nodes[4] = {1'000, 300};
 
     lines.push_back(line(1, 3, 7));
     lines.push_back(line(3, 2, 14));
@@ -55,19 +57,21 @@ public:
     return true;
   }
 
-  bool OnUserUpdate(float elapsedTime) override
+  bool OnUserUpdate(float elapsed_time) override
   {
     if (IsFocused())
     {
       Clear(olc::BLACK);
 
-      HandleModeChange();
-      HandleInput();
+      handle_mode_change();
+      handle_input();
 
-      PaintLines();
-      PaintNodes();
+      if (graph_has_changed) reset_graph();
 
-      PaintUI();
+      paint_lines();
+      paint_nodes();
+
+      paint_UI();
     }
 
     return true;
@@ -78,7 +82,7 @@ public:
 
 
 private:
-  void HandleModeChange()
+  void handle_mode_change()
   {
     if (GetKey(olc::M).bPressed) mode = MOVE;
     else if (GetKey(olc::N).bPressed) mode = NODE;
@@ -86,42 +90,45 @@ private:
     else if (GetKey(olc::P).bPressed) mode = PATH;
   }
 
-  void HandleInput()
+  void handle_input()
   {
     if (mode == MOVE)
     {
       // The node which the mouse is hovering over is being selected
       if (GetMouse(0).bPressed)
       {
-        for (const auto& node : nodes) if (IsMouseInCircle(node.second)) selectedNode = node.first;
+        for (const auto& node : nodes) if (is_mouse_in_circle(node.second)) selected_node = node.first;
       }
       // Moving the node around
-      else if (GetMouse(0).bHeld and selectedNode != 0)
+      else if (GetMouse(0).bHeld and selected_node != 0)
       {
-        nodes[selectedNode] = {GetMouseX(), GetMouseY()};
+        nodes[selected_node] = {GetMouseX(), GetMouseY()};
 
-        if (nodes[selectedNode].x < 0 + radius) nodes[selectedNode].x = 0 + radius;
-        if (nodes[selectedNode].y < UISectionHeight + radius) nodes[selectedNode].y = UISectionHeight + radius;
-        if (nodes[selectedNode].x > ScreenWidth() - radius) nodes[selectedNode].x = ScreenWidth() - radius;
-        if (nodes[selectedNode].y > ScreenHeight() - radius) nodes[selectedNode].y = ScreenHeight() - radius;
+        if (nodes[selected_node].x < 0 + radius) nodes[selected_node].x = 0 + radius;
+        if (nodes[selected_node].y < UI_section_height + radius) nodes[selected_node].y = UI_section_height + radius;
+        if (nodes[selected_node].x > ScreenWidth() - radius) nodes[selected_node].x = ScreenWidth() - radius;
+        if (nodes[selected_node].y > ScreenHeight() - radius) nodes[selected_node].y = ScreenHeight() - radius;
       }
       // Releasing the node from our iron grip
-      else if (GetMouse(0).bReleased) selectedNode = 0;
+      else if (GetMouse(0).bReleased) selected_node = 0;
     }
     else if (mode == NODE)
     {
       // Create node on primary mouse click
-      if (GetMouseY() > UISectionHeight and GetMouse(0).bPressed)
+      if (GetMouseY() > UI_section_height and GetMouse(0).bPressed)
       {
         // Only create a new node if it does not overlap with any existing one
         for (const auto& node : nodes)
         {
           // Giving the mouse a bit of a deadzone around it just to be safe
-          if (DoCirclesOverlap(node.second, {GetMouseX() + 2, GetMouseY() + 2})) return;
+          // Not creating a node if the mouse overlaps with an existing node (hence the early return)
+          if (do_circles_overlap(node.second, {GetMouseX() + 2, GetMouseY() + 2})) return;
         }
 
         // Creating a new node
-        nodes[GenerateNodeID()] = {GetMouseX(), GetMouseY()};
+        nodes[generate_node_ID()] = {GetMouseX(), GetMouseY()};
+
+        graph_has_changed = true;
       }
       // Deleting a node and all lines coming/going from/to it
       else if (GetMouse(1).bPressed)
@@ -129,7 +136,7 @@ private:
         // Finding the node
         for (const auto& node : nodes)
         {
-          if (DoCirclesOverlap(node.second, {GetMouseX(), GetMouseY()}))
+          if (do_circles_overlap(node.second, {GetMouseX(), GetMouseY()}))
           {
             // Deleting all lines associated with said node
             // Using an iterator because only an iterator allows one to delete an element
@@ -144,6 +151,7 @@ private:
 
             // Deleting the node
             nodes.erase(node.first);
+            graph_has_changed = true;
             break;
           }
         }
@@ -154,94 +162,98 @@ private:
       {
         lines.clear();
         nodes.clear();
+        graph_has_changed = true;
       }
     }
-    // TODO: line mode input
     else if (mode == LINE)
     {
       if (GetMouse(0).bPressed)
       {
         // Select a node but only if none have already been selected
-        if (selectedNode == 0)
+        if (selected_node == 0)
         {
           bool ANodeHasBeenSelected = false;
 
           for (const auto& node : nodes)
           {
-            if (not IsMouseInCircle(node.second)) continue;
+            if (not is_mouse_in_circle(node.second)) continue;
 
-            selectedNode = node.first;
+            selected_node = node.first;
             ANodeHasBeenSelected = true;
             break;
           }
 
-          if (not ANodeHasBeenSelected) selectedNode = 0;
+          if (not ANodeHasBeenSelected) selected_node = 0;
         }
         // Create a new line but only if that line doesn't exist yet
         else
         {
           for (const auto& node : nodes)
           {
-            if (not IsMouseInCircle(node.second)) continue;
+            if (not is_mouse_in_circle(node.second)) continue;
 
             // TODO: refactor this
-            bool lineExistsAlready = false;
+            bool line_exists_already = false;
 
             // Only creating a new line if none exists yet in either direction
             for (const auto& aLine : lines)
             {
               // Ignore the line if it already exists
-              if ((aLine.from == node.first and aLine.to == selectedNode) or (aLine.from == selectedNode and aLine.to == node.first))
+              if ((aLine.from == node.first and aLine.to == selected_node) or (aLine.from == selected_node and aLine.to == node.first))
               {
-                lineExistsAlready = true;
+                line_exists_already = true;
                 break;
               }
             }
 
-            if (not lineExistsAlready) lines.push_back(line(selectedNode, node.first, lineLength));
+            if (not line_exists_already)
+            {
+              lines.push_back(line(selected_node, node.first, line_length));
+              graph_has_changed = true;
+            }
           }
 
-          selectedNode = 0;
+          selected_node = 0;
         }
       }
       // Delete a line with right click
       else if (GetMouse(1).bPressed)
       {
         // Only delete a line if a node has been selected
-        if (selectedNode != 0)
+        if (selected_node != 0)
         {
           for (const auto& node : nodes)
           {
-            if (not IsMouseInCircle(node.second)) continue;
+            if (not is_mouse_in_circle(node.second)) continue;
 
             // Using an iterator because it allows for element deletion
             for (std::vector<line>::iterator line = lines.begin(); line < lines.end(); line++)
             {
-              if (not (line->from == selectedNode and line->to == node.first)) continue;
+              if (not (line->from == selected_node and line->to == node.first)) continue;
 
               lines.erase(line);
               line--;
+              graph_has_changed = true;
             }
           }
 
-          selectedNode = 0;
+          selected_node = 0;
         }
       }
 
       if (GetKey(olc::RIGHT).bPressed)
       {
-        IncrementLineLength();
+        increment_line_length();
       }
       else if (GetKey(olc::LEFT).bPressed)
       {
-        DecrementLineLength();
+        decrement_line_length();
       }
 
       // If user presses delete or backspace they delete all lines
       if (GetKey(olc::BACK).bPressed or GetKey(olc::DEL).bPressed) lines.clear();
     }
     // TODO: path mode input
-    // TODO: user adjustable line length with arrow keys
     else if (mode == PATH)
     {
       // Select a node to be the start
@@ -266,11 +278,17 @@ private:
     }
   }
 
-  void PaintUI()
+  void reset_graph()
+  {
+    path.clear();
+    graph_has_changed = false;
+  }
+
+  void paint_UI()
   {
     // Draws a border around the UI section
-    for (int i = 0; i < 6; i++) DrawRect(0 + i, 0 + i, ScreenWidth() - ((2 * i) + 1), UISectionHeight - ((2 * i) + 1), olc::Pixel(128, 0, 255));
-    FillRect(6, 6, ScreenWidth() - 12, UISectionHeight - 12, olc::VERY_DARK_CYAN);
+    for (int i = 0; i < 6; i++) DrawRect(0 + i, 0 + i, ScreenWidth() - ((2 * i) + 1), UI_section_height - ((2 * i) + 1), olc::Pixel(128, 0, 255));
+    FillRect(6, 6, ScreenWidth() - 12, UI_section_height - 12, olc::VERY_DARK_CYAN);
 
     DrawStringProp({10, 10}, "Mode:", olc::GREY, 2);
     DrawString({90, 10}, " M  N  L  P", olc::MAGENTA, 2);
@@ -282,7 +300,7 @@ private:
       DrawString({91, 10}, "[ ]", olc::WHITE, 2);
       DrawStringProp({285, 10}, "- Move", olc::GREY, 2);
 
-      if (selectedNode == 0)
+      if (selected_node == 0)
       {
         DrawStringProp({10, 29}, "Left Mouse: hold to move a node around", olc::GREY, 2);
         DrawStringProp({10, 29}, "Left Mouse:", olc::MAGENTA, 2);
@@ -306,7 +324,7 @@ private:
       DrawString({187, 10}, "[ ]", olc::WHITE, 2);
       DrawStringProp({285, 10}, "- Line", olc::GREY, 2);
 
-      if (selectedNode == 0)
+      if (selected_node == 0)
       {
         DrawStringProp({10, 29}, "Left Mouse: select a node", olc::GREY, 2);
         DrawStringProp({10, 29}, "Left Mouse:", olc::MAGENTA, 2);
@@ -320,20 +338,21 @@ private:
       }
 
       // Adjust line length
-      DrawString({10, 67}, "<" + (lineLength < 10 ? '0' + std::to_string(lineLength) : std::to_string(lineLength)) + ">", olc::GREY, 2);
-      DrawString({10, 67}, "<", olc::MAGENTA, 2);
-      DrawString({58, 67}, ">", olc::MAGENTA, 2);
+      DrawStringProp({10, 67}, "Line length:", olc::GREY, 2);
+      DrawString({150, 67}, "<" + (line_length < 10 ? '0' + std::to_string(line_length) : std::to_string(line_length)) + ">", olc::GREY, 2);
+      DrawString({150, 67}, "<", olc::MAGENTA, 2);
+      DrawString({198, 67}, ">", olc::MAGENTA, 2);
 
       // Hover on arrow keys for line length
-      if (IsMouseInRect({8, 65}, {13, 17}))
+      if (is_mouse_in_rect({148, 65}, {13, 17}))
       {
-        DrawRect({8, 65}, {13, 17}, olc::GREY);
-        if (GetMouse(0).bPressed) DecrementLineLength();
+        DrawRect({148, 65}, {13, 17}, olc::GREY);
+        if (GetMouse(0).bPressed) decrement_line_length();
       }
-      else if (IsMouseInRect({58, 65}, {13, 17}))
+      else if (is_mouse_in_rect({198, 65}, {13, 17}))
       {
-        DrawRect({58, 65}, {13, 17}, olc::GREY);
-        if (GetMouse(0).bPressed) IncrementLineLength();
+        DrawRect({198, 65}, {13, 17}, olc::GREY);
+        if (GetMouse(0).bPressed) increment_line_length();
       }
     }
     // UI for PATH
@@ -344,25 +363,25 @@ private:
     }
 
     // Hover on 'M'
-    if (mode != MOVE and IsMouseInRect({103, 7}, {18, 19}))
+    if (mode != MOVE and is_mouse_in_rect({103, 7}, {18, 19}))
     {
       DrawString({91, 10}, "[ ]", olc::GREY, 2);
       if (GetMouse(0).bPressed) mode = MOVE;
     }
     // Hover on 'N'
-    else if (mode != NODE and IsMouseInRect({151, 7}, {18, 19}))
+    else if (mode != NODE and is_mouse_in_rect({151, 7}, {18, 19}))
     {
       DrawString({139, 10}, "[ ]", olc::GREY, 2);
       if (GetMouse(0).bPressed) mode = NODE;
     }
     // Hover on 'L'
-    else if (mode != LINE and IsMouseInRect({200, 7}, {18, 19}))
+    else if (mode != LINE and is_mouse_in_rect({200, 7}, {18, 19}))
     {
       DrawString({187, 10}, "[ ]", olc::GREY, 2);
       if (GetMouse(0).bPressed) mode = LINE;
     }
     // Hover on 'P'
-    else if (mode != PATH and IsMouseInRect({247, 7}, {18, 19}))
+    else if (mode != PATH and is_mouse_in_rect({247, 7}, {18, 19}))
     {
       DrawString({235, 10}, "[ ]", olc::GREY, 2);
       if (GetMouse(0).bPressed) mode = PATH;
@@ -376,7 +395,7 @@ private:
     // DrawStringProp(ScreenWidth() - 83, 5, str_replace(mouseCoordinates, coordinates), olc::GREY);
   }
 
-  void PaintLines()
+  void paint_lines()
   {
     for (const auto& line : lines)
     {
@@ -416,17 +435,17 @@ private:
     }
   }
 
-  void PaintNodes()
+  void paint_nodes()
   {
     for (const auto& node : nodes)
     {
       // Node color changes if it is the selected node that is being moved around
-      FillCircle(node.second.x, node.second.y, radius, (node.first == selectedNode ? olc::MAGENTA : olc::Pixel(255, 128, 0)));
+      FillCircle(node.second.x, node.second.y, radius, (node.first == selected_node ? olc::MAGENTA : olc::Pixel(255, 128, 0)));
       // TODO: adjust number position for numbers larger than 10 to fit into circle properly
       DrawString(node.second.x - 7, node.second.y - 6, std::to_string(node.first), olc::BLACK, 2);
 
       // A node gets an outline on hover execpt in NODE mode
-      if (mode != NODE and IsMouseInCircle(node.second))
+      if (mode != NODE and is_mouse_in_circle(node.second))
       {
         DrawCircle(nodes[node.first].x, nodes[node.first].y, radius + 4, olc::BLACK);
         DrawCircle(nodes[node.first].x, nodes[node.first].y, radius + 5, olc::MAGENTA);
@@ -435,17 +454,17 @@ private:
     }
   }
 
-  void PaintStartAndEnd()
+  void paint_start_and_end()
   {
   }
 
-  void PaintPath()
+  void paint_path()
   {
   }
 
   // FIX: sometimes, when all nodes are cleared, only one node with id 1 is being created
   // Finds the smallest missing number in this sequence of numbers (node IDs) otherwise a new ID is created
-  int GenerateNodeID()
+  int generate_node_ID()
   {
     // This is the ID that is expected to be there when we go through all the nodes
     int id = 1;
@@ -461,38 +480,42 @@ private:
     return nodes.size() + 1;
   }
 
-  void IncrementLineLength()
+  void increment_line_length()
   {
-    if (lineLength < 99) lineLength++;
+    if (line_length < 99) line_length++;
   }
 
-  void DecrementLineLength()
+  void decrement_line_length()
   {
-    if (lineLength > 1) lineLength--;
+    if (line_length > 1) line_length--;
   }
 
-  bool DoCirclesOverlap(const olc::vi2d& circle1, const olc::vi2d& circle2) {
+  bool do_circles_overlap(const olc::vi2d& circle1, const olc::vi2d& circle2)
+  {
     return fabs(pow((circle1.x - circle2.x), 2) + pow((circle1.y - circle2.y), 2)) <= pow(2 * radius, 2);
   }
-  bool DoCirclesOverlap(const int& x1, const int& y1, const int& x2, const int& y2) {
+  bool do_circles_overlap(const int& x1, const int& y1, const int& x2, const int& y2)
+  {
     return fabs(pow((x1 - x2), 2) + pow((y1 - y2), 2)) <= pow(2 * radius, 2);
   }
 
-  bool IsMouseInCircle(const olc::vi2d& circle) {
+  bool is_mouse_in_circle(const olc::vi2d& circle)
+  {
     return fabs(pow((circle.x - GetMouseX()), 2) + pow((circle.y - GetMouseY()), 2)) < pow(radius, 2);
   }
-  bool IsMouseInCircle(const int& x, const int& y) {
+  bool is_mouse_in_circle(const int& x, const int& y)
+  {
     return fabs(pow((x - GetMouseX()), 2) + pow((y - GetMouseY()), 2)) < pow(radius, 2);
   }
 
-  bool IsMouseInRect(const olc::vi2d& position, const olc::vi2d& dimensions) {
+  bool is_mouse_in_rect(const olc::vi2d& position, const olc::vi2d& dimensions)
+  {
     if (GetMouseX() < position.x or GetMouseY() < position.y or GetMouseX() > position.x + dimensions.x or GetMouseY() > position.y + dimensions.y) return false;
-
     return true;
   }
-  bool IsMouseInRect(const int& x, const int& y, const int& width, const int& height) {
+  bool is_mouse_in_rect(const int& x, const int& y, const int& width, const int& height)
+  {
     if (GetMouseX() < x or GetMouseY() < y or GetMouseX() > x + width or GetMouseY() > y + height) return false;
-
     return true;
   }
 };
@@ -501,7 +524,7 @@ int main()
 {
   PGE_graph_visualiser instance;
 
-  if (instance.Construct(1280, 820, 1, 1)) instance.Start();
+  if (instance.Construct(1'280, 820, 1, 1)) instance.Start();
 
   return 0;
 }
