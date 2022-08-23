@@ -32,7 +32,7 @@ public:
 
 private:
   int UI_section_height = 100;
-  int radius = 12;
+  int radius = 10;
   int selected_node = 0;
   int line_length = 1;
   int start = 0;
@@ -317,6 +317,9 @@ private:
       DrawStringProp({10, 29}, "Left Mouse", olc::MAGENTA, 2);
       DrawStringProp({10, 48}, "Right Mouse: delete a node", olc::GREY, 2);
       DrawStringProp({10, 48}, "Right Mouse", olc::MAGENTA, 2);
+      DrawStringProp({10, 67}, "Backspace/Delete: delete all nodes", olc::GREY, 2);
+      DrawStringProp({10, 67}, "Backspace", olc::MAGENTA, 2);
+      DrawStringProp({158, 67}, "Delete", olc::MAGENTA, 2);
     }
     // UI for LINE
     else if (mode == LINE)
@@ -337,21 +340,26 @@ private:
         DrawStringProp({10, 48}, "Right Mouse", olc::MAGENTA, 2);
       }
 
+      DrawStringProp({10, 67}, "Backspace/Delete: delete all lines", olc::GREY, 2);
+      DrawStringProp({10, 67}, "Backspace", olc::MAGENTA, 2);
+      DrawStringProp({158, 67}, "Delete", olc::MAGENTA, 2);
+
+      int distance = 450;
       // Adjust line length
-      DrawStringProp({10, 67}, "Line length:", olc::GREY, 2);
-      DrawString({150, 67}, "<" + (line_length < 10 ? '0' + std::to_string(line_length) : std::to_string(line_length)) + ">", olc::GREY, 2);
-      DrawString({150, 67}, "<", olc::MAGENTA, 2);
-      DrawString({198, 67}, ">", olc::MAGENTA, 2);
+      DrawStringProp({460, 67}, "Line length:", olc::GREY, 2);
+      DrawString({600, 67}, "<" + (line_length < 10 ? '0' + std::to_string(line_length) : std::to_string(line_length)) + ">", olc::GREY, 2);
+      DrawString({600, 67}, "<", olc::MAGENTA, 2);
+      DrawString({648, 67}, ">", olc::MAGENTA, 2);
 
       // Hover on arrow keys for line length
-      if (is_mouse_in_rect({148, 65}, {13, 17}))
+      if (is_mouse_in_rect({598, 65}, {13, 17}))
       {
-        DrawRect({148, 65}, {13, 17}, olc::GREY);
+        DrawRect({598, 65}, {13, 17}, olc::GREY);
         if (GetMouse(0).bPressed) decrement_line_length();
       }
-      else if (is_mouse_in_rect({198, 65}, {13, 17}))
+      else if (is_mouse_in_rect({648, 65}, {13, 17}))
       {
-        DrawRect({198, 65}, {13, 17}, olc::GREY);
+        DrawRect({648, 65}, {13, 17}, olc::GREY);
         if (GetMouse(0).bPressed) increment_line_length();
       }
     }
@@ -386,13 +394,6 @@ private:
       DrawString({235, 10}, "[ ]", olc::GREY, 2);
       if (GetMouse(0).bPressed) mode = PATH;
     }
-
-    // std::string mouseCoordinates = "x:{x} y:{y}";
-    // std::unordered_map<std::string, std::string> coordinates {
-    //   {"{x}", std::to_string(GetMouseX())},
-    //   {"{y}", std::to_string(GetMouseY())},
-    // };
-    // DrawStringProp(ScreenWidth() - 83, 5, str_replace(mouseCoordinates, coordinates), olc::GREY);
   }
 
   void paint_lines()
@@ -442,8 +443,9 @@ private:
       // Node color changes if it is the selected node that is being moved around
       FillCircle(node.second.x, node.second.y, radius, (node.first == selected_node ? olc::MAGENTA : olc::Pixel(255, 128, 0)));
       // TODO: adjust number position for numbers larger than 10 to fit into circle properly
-      DrawString(node.second.x - 7, node.second.y - 6, std::to_string(node.first), olc::BLACK, 2);
+      DrawStringProp((node.first < 10 ? olc::vi2d{node.second.x - 3, node.second.y - 3} : olc::vi2d{node.second.x - 7, node.second.y - 3}), std::to_string(node.first), olc::BLACK, 1);
 
+      // TODO: draw the hovered node after all nodes have been drawn
       // A node gets an outline on hover execpt in NODE mode
       if (mode != NODE and is_mouse_in_circle(node.second))
       {
