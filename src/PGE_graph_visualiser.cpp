@@ -39,23 +39,12 @@ private:
   int end = 0;
   bool graph_has_changed = false;
   mode mode = MOVE;
-  std::vector<line> lines;
-  std::map<int, olc::vi2d> nodes; // The key serves as the ID of the node
-  std::vector<int> path;
+  std::vector<line> lines = {};
+  std::map<int, olc::vi2d> nodes = {}; // The key serves as the ID of the node
+  std::vector<int> path = {};
 
 public:
-  bool OnUserCreate() override
-  {
-    nodes[1] = {150, 150};
-    nodes[2] = {200, 600};
-    nodes[3] = {1'000, 600};
-    nodes[4] = {1'000, 300};
-
-    lines.push_back(line(1, 3, 7));
-    lines.push_back(line(3, 2, 14));
-
-    return true;
-  }
+  bool OnUserCreate() override { return true; }
 
   bool OnUserUpdate(float elapsed_time) override
   {
@@ -63,15 +52,29 @@ public:
     {
       Clear(olc::BLACK);
 
-      handle_mode_change();
+      handle_mode_change_with_keys();
       handle_input();
 
       if (graph_has_changed) reset_graph();
 
       paint_lines();
+
+      if (mode == PATH)
+      {
+        paint_start_and_end();
+        paint_path();
+      }
+
       paint_nodes();
 
       paint_UI();
+    }
+
+    if (GetKey(olc::D).bPressed)
+    {
+      std::cout << "Nodes:" << '\n';
+      for (const auto& node : nodes) std::cout << node.first << ' ' << node.second << '\n';
+      std::cout << '\n';
     }
 
     return true;
@@ -82,7 +85,7 @@ public:
 
 
 private:
-  void handle_mode_change()
+  void handle_mode_change_with_keys()
   {
     if (GetKey(olc::M).bPressed) mode = MOVE;
     else if (GetKey(olc::N).bPressed) mode = NODE;
@@ -104,7 +107,7 @@ private:
       {
         nodes[selected_node] = {GetMouseX(), GetMouseY()};
 
-        if (nodes[selected_node].x < 0 + radius) nodes[selected_node].x = 0 + radius;
+        if (nodes[selected_node].x < radius) nodes[selected_node].x = radius;
         if (nodes[selected_node].y < UI_section_height + radius) nodes[selected_node].y = UI_section_height + radius;
         if (nodes[selected_node].x > ScreenWidth() - radius) nodes[selected_node].x = ScreenWidth() - radius;
         if (nodes[selected_node].y > ScreenHeight() - radius) nodes[selected_node].y = ScreenHeight() - radius;
@@ -253,27 +256,59 @@ private:
       // If user presses delete or backspace they delete all lines
       if (GetKey(olc::BACK).bPressed or GetKey(olc::DEL).bPressed) lines.clear();
     }
-    // TODO: path mode input
     else if (mode == PATH)
     {
       // Select a node to be the start
-      if (GetMouse(0).bPressed)
+      if (GetMouse(0).bPressed and GetMouseY() > UI_section_height)
       {
+        bool new_node_has_been_selected = false;
+
+        for (const auto& node : nodes)
+        {
+          if (is_mouse_in_circle(node.second))
+          {
+            start = node.first;
+            new_node_has_been_selected = true;
+            break;
+          }
+        }
+
+        if (not new_node_has_been_selected) start = 0;
+
+        graph_has_changed = true;
       }
 
       // Select a node to be the end
-      if (GetMouse(1).bPressed)
+      if (GetMouse(1).bPressed and GetMouseY() > UI_section_height)
       {
+        bool new_node_has_been_selected = false;
+
+        for (const auto& node : nodes)
+        {
+          if (is_mouse_in_circle(node.second))
+          {
+            end = node.first;
+            new_node_has_been_selected = true;
+            break;
+          }
+        }
+
+        if (not new_node_has_been_selected) end = 0;
+
+        graph_has_changed = true;
       }
 
       // Calculate the path
       if (GetKey(olc::ENTER).bPressed)
       {
+        // TODO: this 😓
       }
 
       // Clearing the start and end node
       if (GetKey(olc::BACK).bPressed or GetKey(olc::DEL).bPressed)
       {
+        start = 0;
+        end = 0;
       }
     }
   }
@@ -368,6 +403,17 @@ private:
     {
       DrawString({235, 10}, "[ ]", olc::WHITE, 2);
       DrawStringProp({285, 10}, "- Path", olc::GREY, 2);
+
+      DrawStringProp({10, 29}, "Left Mouse: select a node to be the start", olc::GREY, 2);
+      DrawStringProp({10, 29}, "Left Mouse", olc::MAGENTA, 2);
+      DrawStringProp({10, 48}, "Right Mouse: select a node to be the end", olc::GREY, 2);
+      DrawStringProp({10, 48}, "Right Mouse", olc::MAGENTA, 2);
+      DrawStringProp({10, 67}, "Backspace/Delete: delete clear start and end", olc::GREY, 2);
+      DrawStringProp({10, 67}, "Backspace", olc::MAGENTA, 2);
+      DrawStringProp({158, 67}, "Delete", olc::MAGENTA, 2);
+
+      DrawStringProp({590, 29}, "Enter: calculate shortest path from start to end", olc::GREY, 2);
+      DrawStringProp({590, 29}, "Enter", olc::MAGENTA, 2);
     }
 
     // Hover on 'M'
@@ -419,7 +465,6 @@ private:
       olc::vf2d helperDirection = helper - nodes[line.from];
 
       // TODO: adjust triangle wing positions to be more visually pleasing
-      // TODO: try rotating the helper vector instead of this weird stuff
       // These are the positions to the left/right of the line, forming a complete triangle
       // * The cast to int is only there to stop the compiler from complaining about narrowing conversion from float to int
       olc::vi2d three = {int(helper.x - ((helperDirection.y / direction.mag()) * 10)), int(helper.y + ((helperDirection.x / direction.mag()) * 10))};
@@ -438,33 +483,48 @@ private:
 
   void paint_nodes()
   {
+    int hovered_node = 0;
+
     for (const auto& node : nodes)
     {
       // Node color changes if it is the selected node that is being moved around
       FillCircle(node.second.x, node.second.y, radius, (node.first == selected_node ? olc::MAGENTA : olc::Pixel(255, 128, 0)));
-      // TODO: adjust number position for numbers larger than 10 to fit into circle properly
+      // Draws the number
       DrawStringProp((node.first < 10 ? olc::vi2d{node.second.x - 3, node.second.y - 3} : olc::vi2d{node.second.x - 7, node.second.y - 3}), std::to_string(node.first), olc::BLACK, 1);
 
-      // TODO: draw the hovered node after all nodes have been drawn
       // A node gets an outline on hover execpt in NODE mode
-      if (mode != NODE and is_mouse_in_circle(node.second))
-      {
-        DrawCircle(nodes[node.first].x, nodes[node.first].y, radius + 4, olc::BLACK);
-        DrawCircle(nodes[node.first].x, nodes[node.first].y, radius + 5, olc::MAGENTA);
-        DrawCircle(nodes[node.first].x, nodes[node.first].y, radius + 6, olc::BLACK);
-      }
+      if (mode != NODE and is_mouse_in_circle(node.second)) hovered_node = node.first;
+    }
+
+    if (hovered_node != 0)
+    {
+      DrawCircle(nodes[hovered_node].x, nodes[hovered_node].y, radius + 4, olc::BLACK);
+      DrawCircle(nodes[hovered_node].x, nodes[hovered_node].y, radius + 5, olc::MAGENTA);
+      DrawCircle(nodes[hovered_node].x, nodes[hovered_node].y, radius + 6, olc::BLACK);
     }
   }
 
   void paint_start_and_end()
   {
+    // Draws start
+    if (start != 0)
+    {
+      FillRect(nodes[start].x - 38, nodes[start].y - 28, 74, 16, olc::BLACK);
+      DrawStringProp(nodes[start].x - 37, nodes[start].y - 27, "Start", olc::GREEN, 2);
+    }
+
+    // Draws end
+    if (end != 0)
+    {
+      FillRect(nodes[end].x - 23, nodes[end].y - 28, 44, 16, olc::BLACK);
+      DrawStringProp(nodes[end].x - 22, nodes[end].y - 27, "End", olc::GREEN, 2);
+    }
   }
 
   void paint_path()
   {
   }
 
-  // FIX: sometimes, when all nodes are cleared, only one node with id 1 is being created
   // Finds the smallest missing number in this sequence of numbers (node IDs) otherwise a new ID is created
   int generate_node_ID()
   {
@@ -474,7 +534,6 @@ private:
     {
       // We found a node whose ID does not match our expectation (bigger than $id), so we return the wanted ID
       if (node.first != id) return id;
-
       id++;
     }
 
