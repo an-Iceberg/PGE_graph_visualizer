@@ -1,7 +1,7 @@
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
 #include <map>
-#include <unordered_map>
+#include <queue>
 
 enum mode
 {
@@ -31,12 +31,14 @@ public:
   PGE_graph_visualiser() { sAppName = "PGE Graph Visualiser"; }
 
 private:
-  int UI_section_height = 100;
+  int UI_section_height = 92;
   int radius = 10;
   int selected_node = 0;
   int line_length = 1;
   int start = 0;
   int end = 0;
+  float arrow_head_length = 20.0f; // Large => 25.0f
+  float arrow_head_angle = 0.26f; // In radians; large => 0.35f
   bool graph_has_changed = false;
   mode mode = MOVE;
   std::vector<line> lines = {};
@@ -195,7 +197,8 @@ private:
           {
             if (not is_mouse_in_circle(node.second)) continue;
 
-            // TODO: refactor this
+            // TODO: I don't like the fact that we need to create a bool here; try implementing without it
+            // ~ But then again, we do do that when painting the arrow heads
             bool line_exists_already = false;
 
             // Only creating a new line if none exists yet in either direction
@@ -397,6 +400,8 @@ private:
         DrawRect({648, 65}, {13, 17}, olc::GREY);
         if (GetMouse(0).bPressed) increment_line_length();
       }
+
+      // TODO: make arrow head size user adjustable
     }
     // UI for PATH
     else if (mode == PATH)
@@ -408,7 +413,7 @@ private:
       DrawStringProp({10, 29}, "Left Mouse", olc::MAGENTA, 2);
       DrawStringProp({10, 48}, "Right Mouse: select a node to be the end", olc::GREY, 2);
       DrawStringProp({10, 48}, "Right Mouse", olc::MAGENTA, 2);
-      DrawStringProp({10, 67}, "Backspace/Delete: delete clear start and end", olc::GREY, 2);
+      DrawStringProp({10, 67}, "Backspace/Delete: clear start and end", olc::GREY, 2);
       DrawStringProp({10, 67}, "Backspace", olc::MAGENTA, 2);
       DrawStringProp({158, 67}, "Delete", olc::MAGENTA, 2);
 
@@ -460,21 +465,79 @@ private:
       // This is the point further down the line (literally)
       olc::vi2d two = nodes[line.to] + (direction * ((radius + 15) / direction.mag()));
 
-      // Helper position to calculate the positions of the corners off the line
-      olc::vf2d helper = nodes[line.to] + (direction * ((radius + 20) / direction.mag()));
-      olc::vf2d helperDirection = helper - nodes[line.from];
-
-      // TODO: adjust triangle wing positions to be more visually pleasing
       // These are the positions to the left/right of the line, forming a complete triangle
+      /* x1/y1 are the start of the line, x2/y2 are the end of the line where the head of the arrow should be
+        L1 is the length from x1/y1 to x2/y2
+        L2 is the length of the arrow head
+        a is the angle
+
+        Formula:
+        x3 = x2 + L2/L1 * [(x1 - x2) * cos(a) + (y1 - y2) * sin(a)]
+        y3 = y2 + L2/L1 * [(y1 - y2) * cos(a) - (x1 - x2) * sin(a)]
+        x4 = x2 + L2/L1 * [(x1 - x2) * cos(a) - (y1 - y2) * sin(a)]
+        x4 = x2 + L2/L1 * [(y1 - y2) * cos(a) + (x1 - x2) * sin(a)]
+
+        Source: https://math.stackexchange.com/questions/1314006/drawing-an-arrow */
       // * The cast to int is only there to stop the compiler from complaining about narrowing conversion from float to int
-      olc::vi2d three = {int(helper.x - ((helperDirection.y / direction.mag()) * 10)), int(helper.y + ((helperDirection.x / direction.mag()) * 10))};
-      olc::vi2d four = {int(helper.x + ((helperDirection.y / direction.mag()) * 10)), int(helper.y - ((helperDirection.x / direction.mag()) * 10))};
+      olc::vi2d three = {
+        int(
+          float(one.x)
+          +
+          (
+            (arrow_head_length / direction.mag())
+            *
+            (
+              float(nodes[line.from].x - nodes[line.to].x) * cos(arrow_head_angle)
+              +
+              float(nodes[line.from].y - nodes[line.to].y) * sin(arrow_head_angle)
+            )
+          )
+        ),
+        int(
+          float(one.y)
+          +
+          (
+            (arrow_head_length / direction.mag())
+            *
+            (
+              float(nodes[line.from].y - nodes[line.to].y) * cos(arrow_head_angle)
+              -
+              float(nodes[line.from].x - nodes[line.to].x) * sin(arrow_head_angle)
+            )
+          )
+        )
+      };
+      olc::vi2d four = {
+        int(
+          float(one.x)
+          +
+          (
+            (arrow_head_length / direction.mag())
+            *
+            (
+              float(nodes[line.from].x - nodes[line.to].x) * cos(arrow_head_angle)
+              -
+              float(nodes[line.from].y - nodes[line.to].y) * sin(arrow_head_angle)
+            )
+          )
+        ),
+        int(
+          float(one.y)
+          +
+          (
+            (arrow_head_length / direction.mag())
+            *
+            (
+              float(nodes[line.from].y - nodes[line.to].y) * cos(arrow_head_angle)
+              +
+              float(nodes[line.from].x - nodes[line.to].x) * sin(arrow_head_angle)
+            )
+          )
+        )
+      };
 
       FillTriangle(one, two, three, olc::CYAN);
       FillTriangle(one, two, four, olc::CYAN);
-
-      // Draw(helper, olc::Pixel(rand() % 256, rand() % 256, rand() % 256)); // dbg
-      // DrawLine(one, two, olc::Pixel(rand() % 256, rand() % 256, rand() % 256)); // dbg
 
       // Paints the distance onto the middle of the line
       DrawStringProp((nodes[line.from].x + nodes[line.to].x) / 2 - 8, (nodes[line.from].y + nodes[line.to].y) / 2 - 8, std::to_string(line.length), olc::WHITE, 2);
