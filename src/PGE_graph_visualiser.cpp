@@ -11,6 +11,12 @@ enum mode
   PATH
 };
 
+enum arrow_head_size
+{
+  SMALL,
+  LARGE
+};
+
 struct line
 {
   int from;
@@ -40,6 +46,7 @@ private:
   float arrow_head_length = 20.0f; // Large => 25.0f
   float arrow_head_angle = 0.26f; // In radians; large => 0.35f
   bool graph_has_changed = false;
+  arrow_head_size arrow_head_size = SMALL;
   mode mode = MOVE;
   std::vector<line> lines = {};
   std::map<int, olc::vi2d> nodes = {}; // The key serves as the ID of the node
@@ -402,6 +409,41 @@ private:
       }
 
       // TODO: make arrow head size user adjustable
+      DrawStringProp({700, 67}, "Arrow size:", olc::GREY, 2);
+      if (arrow_head_size == SMALL)
+      {
+        DrawString({850, 67}, "[small] large", olc::GREY, 2);
+        DrawString({850, 67}, "[     ]", olc::WHITE, 2);
+
+        if (is_mouse_in_rect({983, 67}, {73, 14}))
+        {
+          DrawString({850, 67}, "       [     ]", olc::MAGENTA, 2);
+
+          if (GetMouse(0).bPressed)
+          {
+            arrow_head_size = LARGE;
+            arrow_head_length = 25.0f;
+            arrow_head_angle = 0.35f;
+          }
+        }
+      }
+      else if (arrow_head_size == LARGE)
+      {
+        DrawString({850, 67}, " small [large]", olc::GREY, 2);
+        DrawString({850, 67}, "       [     ]", olc::WHITE, 2);
+
+        if (is_mouse_in_rect({867, 67}, {73, 14}))
+        {
+        DrawString({850, 67}, "[     ]", olc::MAGENTA, 2);
+
+          if (GetMouse(0).bPressed)
+          {
+            arrow_head_size = SMALL;
+            arrow_head_length = 20.0f;
+            arrow_head_angle = 0.26f;
+          }
+        }
+      }
     }
     // UI for PATH
     else if (mode == PATH)
